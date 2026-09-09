@@ -33,6 +33,18 @@ export const ProviderPaseoToolsPolicySchema = z.object({
   disabledTools: z.array(z.string()).optional(),
 });
 
+/** A host-local allowlist for one provider profile. */
+export const ProviderProjectAccessSchema = z.object({
+  default: z.enum(["allow", "deny"]).default("allow"),
+  allowedProjectIds: z.array(z.string().min(1)).default([]),
+});
+
+export const ProviderProjectDefaultSchema = z.object({
+  model: z.string().min(1),
+  modeId: z.string().min(1).optional(),
+  thinkingOptionId: z.string().min(1).optional(),
+});
+
 const ProviderProfileThinkingOptionSchema = z.object({
   id: z.string(),
   label: z.string(),
@@ -59,6 +71,8 @@ export const ProviderOverrideSchema = z.object({
   additionalModels: z.array(ProviderProfileModelSchema).optional(),
   disallowedTools: z.array(z.string()).optional(),
   paseoTools: ProviderPaseoToolsPolicySchema.optional(),
+  projectAccess: ProviderProjectAccessSchema.optional(),
+  projectDefaults: z.record(z.string().min(1), ProviderProjectDefaultSchema).optional(),
   enabled: z.boolean().optional(),
   order: z.number().optional(),
 });
@@ -134,6 +148,8 @@ export const AgentProviderRuntimeSettingsMapSchema = z
 export type ProviderCommand = z.infer<typeof ProviderCommandSchema>;
 export type ProviderRuntimeSettings = z.infer<typeof ProviderRuntimeSettingsSchema>;
 export type ProviderPaseoToolsPolicy = z.infer<typeof ProviderPaseoToolsPolicySchema>;
+export type ProviderProjectAccess = z.infer<typeof ProviderProjectAccessSchema>;
+export type ProviderProjectDefault = z.infer<typeof ProviderProjectDefaultSchema>;
 export type ProviderProfileModel = z.infer<typeof ProviderProfileModelSchema>;
 export type ProviderOverride = z.infer<typeof ProviderOverrideSchema>;
 export type ProviderOverrides = z.infer<typeof ProviderOverridesSchema>;

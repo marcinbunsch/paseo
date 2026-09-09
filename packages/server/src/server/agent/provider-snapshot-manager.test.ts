@@ -138,6 +138,53 @@ async function runTestCatalogActivities(
 }
 
 describe("ProviderSnapshotManager public surface", () => {
+  test("fails closed for a provider denied outside its project allowlist", () => {
+    const manager = new ProviderSnapshotManager({
+      logger: createTestLogger(),
+      providerOverrides: {
+        "claude-work": {
+          extends: "claude",
+          label: "Claude (Work)",
+          projectAccess: { default: "deny", allowedProjectIds: ["prj_work"] },
+        },
+      },
+    });
+
+    try {
+      expect(() => manager.assertProviderAllowedForProject("claude-work", "prj_work")).not.toThrow();
+      expect(() => manager.assertProviderAllowedForProject("claude-work", "prj_personal")).toThrow(
+        "Provider 'Claude (Work)' is not allowed for this project",
+      );
+      expect(() => manager.assertProviderAllowedForProject("codex", "prj_personal")).not.toThrow();
+    } finally {
+      manager.destroy();
+    }
+  });
+
+  test("resolves a project default only when its provider is allowed", () => {
+    const manager = new ProviderSnapshotManager({
+      logger: createTestLogger(),
+      providerOverrides: {
+        "claude-work": {
+          extends: "claude",
+          label: "Claude (Work)",
+          projectAccess: { default: "deny", allowedProjectIds: ["prj_work"] },
+          projectDefaults: { prj_work: { model: "claude-sonnet-4-6" } },
+        },
+      },
+    });
+
+    try {
+      expect(manager.resolveProjectDefault("prj_work")).toEqual({
+        provider: "claude-work",
+        model: "claude-sonnet-4-6",
+      });
+      expect(manager.resolveProjectDefault("prj_personal")).toBeUndefined();
+    } finally {
+      manager.destroy();
+    }
+  });
+
   test("carries a plugin provider icon in snapshot metadata", () => {
     const iconSvg = '<svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z" /></svg>';
     const registration: ProviderRegistration = {

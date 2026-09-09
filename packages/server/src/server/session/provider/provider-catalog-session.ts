@@ -49,6 +49,7 @@ export interface ProviderCatalogSessionHost {
   supportsCompactProviderSnapshots(): boolean;
   supportsProviderSnapshotReferences(): boolean;
   wantsSnapshotChanges(): boolean;
+  projectIdForCwd?(cwd: string | undefined): Promise<string | null>;
   listProviderAvailability(): Promise<ProviderAvailability[]>;
   listDraftFeatures(config: AgentSessionConfig): Promise<AgentFeature[]>;
 }
@@ -422,10 +423,24 @@ export class ProviderCatalogSession {
   ): Promise<void> {
     const cwd = msg.cwd?.trim() ? resolveSnapshotCwd(expandTilde(msg.cwd)) : undefined;
     const snapshot = this.visibleSnapshot(this.providerSnapshotManager.getSnapshot(cwd));
+    const projectId = await this.host.projectIdForCwd?.(cwd);
+    const projectSnapshot = projectId
+      ? {
+          ...snapshot,
+          records: snapshot.records.filter(({ entry }) => {
+            try {
+              this.providerSnapshotManager.assertProviderAllowedForProject(entry.provider, projectId);
+              return true;
+            } catch {
+              return false;
+            }
+          }),
+        }
+      : snapshot;
     this.host.emit({
       type: "get_providers_snapshot_response",
       payload: {
-        ...this.snapshotPayload(snapshot, { ifNoneMatch: msg.ifNoneMatch }),
+        ...this.snapshotPayload(projectSnapshot, { ifNoneMatch: msg.ifNoneMatch }),
         requestId: msg.requestId,
       },
     });

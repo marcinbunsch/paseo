@@ -449,6 +449,36 @@ This works for both built-in and custom providers. To re-enable, set `enabled: t
 
 ---
 
+## Restricting a provider to projects
+
+Provider profiles can be denied by default and explicitly enabled for local project IDs. This stays in the host's `config.json`; it does not change the repository or another developer's provider access.
+
+`projectDefaults` pins the provider and model whenever Paseo creates an agent in that project. The daemon applies the default and rejects the provider outside its allowlist, including requests made through the API or CLI.
+
+```json
+{
+  "agents": {
+    "providers": {
+      "claude-work": {
+        "extends": "claude",
+        "label": "Claude (Work)",
+        "projectAccess": {
+          "default": "deny",
+          "allowedProjectIds": ["prj_0123456789abcdef"]
+        },
+        "projectDefaults": {
+          "prj_0123456789abcdef": { "model": "claude-sonnet-4-6" }
+        }
+      }
+    }
+  }
+}
+```
+
+A project default must name a provider permitted for that project. A bad policy fails creation instead of selecting a different provider.
+
+---
+
 ## ACP providers
 
 The [Agent Client Protocol (ACP)](https://agentclientprotocol.com) is an open standard for communication between editors and AI coding agents — think LSP but for AI agents. Any agent that supports ACP can be added to Paseo as a custom provider.
@@ -688,6 +718,8 @@ Every entry under `agents.providers` accepts these fields:
 | `models`           | `ProviderProfileModel[]`  | No                | Static model list (overrides runtime discovery)                    |
 | `additionalModels` | `ProviderProfileModel[]`  | No                | Static model additions (merged with runtime discovery or `models`) |
 | `disallowedTools`  | `string[]`                | No                | Tool names to disable for this provider (e.g. `["WebSearch"]`)     |
+| `projectAccess`    | `ProviderProjectAccess`   | No                | Host-local project allowlist; use `default: "deny"` to fail closed |
+| `projectDefaults`  | `Record<string, default>` | No                | Project IDs mapped to this provider's forced model selection        |
 | `enabled`          | `boolean`                 | No                | Set to `false` to hide the provider (default: `true`)              |
 | `order`            | `number`                  | No                | Sort order in the provider list                                    |
 

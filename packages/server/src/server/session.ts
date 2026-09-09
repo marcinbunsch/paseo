@@ -930,6 +930,14 @@ export class Session {
         supportsCustomModeIcons: () => this.supports(CLIENT_CAPS.customModeIcons),
         supportsCompactProviderSnapshots: () => this.supports(CLIENT_CAPS.compactProviderSnapshots),
         wantsSnapshotChanges: () => this.wantsEvent("providers_snapshot_update"),
+        projectIdForCwd: async (cwd) => {
+          if (!cwd) return null;
+          const normalizedCwd = resolve(cwd);
+          const workspace = (await this.workspaceRegistry.list()).find(
+            (candidate) => !candidate.archivedAt && resolve(candidate.cwd) === normalizedCwd,
+          );
+          return workspace?.projectId ?? null;
+        },
         supportsProviderSnapshotReferences: () =>
           this.supports(CLIENT_CAPS.providerSnapshotReferences),
         listProviderAvailability: () => this.agentManager.listProviderAvailability(),
@@ -3686,6 +3694,44 @@ export class Session {
         throw new Error(`Working directory does not exist or is not a directory: ${resolvedCwd}`);
       }
 
+      const workspace = await this.workspaceRegistry.get(resolvedIntent.intent.workspaceId);
+      if (!workspace || workspace.archivedAt) {
+        throw new Error(`Workspace ${resolvedIntent.intent.workspaceId} not found`);
+      }
+      const projectDefault = this.providerSnapshotManager.resolveProjectDefault(workspace.projectId);
+      const sessionConfig = projectDefault
+        ? {
+            ...resolvedIntent.config,
+            provider: projectDefault.provider,
+            model: projectDefault.model,
+            ...(projectDefault.modeId ? { modeId: projectDefault.modeId } : {}),
+            ...(projectDefault.thinkingOptionId
+              ? { thinkingOptionId: projectDefault.thinkingOptionId }
+              : {}),
+          }
+        : resolvedIntent.config;
+      this.providerSnapshotManager.assertProviderAllowedForProject(
+        sessionConfig.provider,
+        workspace.projectId,
+      );
+      if (projectDefault) {
+        const models = await this.providerSnapshotManager.listModels({
+          provider: sessionConfig.provider,
+          cwd: sessionConfig.cwd,
+          wait: true,
+        });
+        if (
+          !models.some(
+            (model) =>
+              model.id === projectDefault.model || model.aliases?.includes(projectDefault.model),
+          )
+        ) {
+          throw new Error(
+            `Project default model '${projectDefault.model}' is not available for provider '${sessionConfig.provider}'`,
+          );
+        }
+      }
+
       const { snapshot, liveSnapshot } = await createAgentCommand(
         {
           agentManager: this.agentManager,
@@ -3698,7 +3744,7 @@ export class Session {
         {
           kind: "session",
           agentId,
-          config: resolvedIntent.config,
+          config: sessionConfig,
           workspaceId: resolvedIntent.intent.workspaceId,
           worktreeName,
           initialPrompt,

@@ -353,6 +353,26 @@ export class ProviderSnapshotManager {
     return this.generation.definitions[provider]?.label ?? provider;
   }
 
+  assertProviderAllowedForProject(provider: AgentProvider, projectId: string): void {
+    const access = this.providerOverrides?.[provider]?.projectAccess;
+    if (!access || access.default === "allow" || access.allowedProjectIds.includes(projectId)) {
+      return;
+    }
+    throw new Error(`Provider '${this.getProviderLabel(provider)}' is not allowed for this project`);
+  }
+
+  resolveProjectDefault(projectId: string):
+    | { provider: AgentProvider; model: string; modeId?: string; thinkingOptionId?: string }
+    | undefined {
+    for (const provider of this.generation.order) {
+      const projectDefault = this.providerOverrides?.[provider]?.projectDefaults?.[projectId];
+      if (!projectDefault) continue;
+      this.assertProviderAllowedForProject(provider, projectId);
+      return { provider, ...projectDefault };
+    }
+    return undefined;
+  }
+
   getAgentManagerProviderState(): AgentManagerProviderState {
     return this.createAgentManagerState(this.generation.definitions, this.providerClients);
   }
