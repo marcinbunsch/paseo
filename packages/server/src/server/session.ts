@@ -3633,6 +3633,46 @@ export class Session {
     }
   }
 
+  private async applyProjectProviderPolicy(
+    config: AgentSessionConfig,
+    projectId: string,
+  ): Promise<AgentSessionConfig> {
+    const projectDefault = this.providerSnapshotManager.resolveProjectDefault(projectId);
+    const resolvedConfig = projectDefault
+      ? {
+          ...config,
+          provider: projectDefault.provider,
+          model: projectDefault.model,
+          ...(projectDefault.modeId ? { modeId: projectDefault.modeId } : {}),
+          ...(projectDefault.thinkingOptionId
+            ? { thinkingOptionId: projectDefault.thinkingOptionId }
+            : {}),
+        }
+      : config;
+    this.providerSnapshotManager.assertProviderAllowedForProject(
+      resolvedConfig.provider,
+      projectId,
+    );
+    if (!projectDefault) return resolvedConfig;
+
+    const models = await this.providerSnapshotManager.listModels({
+      provider: resolvedConfig.provider,
+      cwd: resolvedConfig.cwd,
+      wait: true,
+    });
+    if (
+      !models.some(
+        (model) =>
+          model.id === projectDefault.model || model.aliases?.includes(projectDefault.model),
+      )
+    ) {
+      throw new Error(
+        `Project default model '${projectDefault.model}' is not available for provider '${resolvedConfig.provider}'`,
+      );
+    }
+    return resolvedConfig;
+  }
+
   private async createSessionAgent(
     msg: CreateAgentRequestMessage,
     agentId?: string,
@@ -3698,39 +3738,10 @@ export class Session {
       if (!workspace || workspace.archivedAt) {
         throw new Error(`Workspace ${resolvedIntent.intent.workspaceId} not found`);
       }
-      const projectDefault = this.providerSnapshotManager.resolveProjectDefault(workspace.projectId);
-      const sessionConfig = projectDefault
-        ? {
-            ...resolvedIntent.config,
-            provider: projectDefault.provider,
-            model: projectDefault.model,
-            ...(projectDefault.modeId ? { modeId: projectDefault.modeId } : {}),
-            ...(projectDefault.thinkingOptionId
-              ? { thinkingOptionId: projectDefault.thinkingOptionId }
-              : {}),
-          }
-        : resolvedIntent.config;
-      this.providerSnapshotManager.assertProviderAllowedForProject(
-        sessionConfig.provider,
+      const policyConfig = await this.applyProjectProviderPolicy(
+        resolvedIntent.config,
         workspace.projectId,
       );
-      if (projectDefault) {
-        const models = await this.providerSnapshotManager.listModels({
-          provider: sessionConfig.provider,
-          cwd: sessionConfig.cwd,
-          wait: true,
-        });
-        if (
-          !models.some(
-            (model) =>
-              model.id === projectDefault.model || model.aliases?.includes(projectDefault.model),
-          )
-        ) {
-          throw new Error(
-            `Project default model '${projectDefault.model}' is not available for provider '${sessionConfig.provider}'`,
-          );
-        }
-      }
 
       const { snapshot, liveSnapshot } = await createAgentCommand(
         {
@@ -3744,7 +3755,7 @@ export class Session {
         {
           kind: "session",
           agentId,
-          config: sessionConfig,
+          config: policyConfig,
           workspaceId: resolvedIntent.intent.workspaceId,
           worktreeName,
           initialPrompt,

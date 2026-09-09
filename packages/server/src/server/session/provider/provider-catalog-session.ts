@@ -87,16 +87,60 @@ export class ProviderCatalogSession {
       if (!this.host.wantsSnapshotChanges()) return;
       const previous = this.visibleSnapshot(transition.previous);
       const current = this.visibleSnapshot(transition.current);
-      if (sameSnapshotRecords(previous.records, current.records)) return;
-      this.host.emit({
-        type: "providers_snapshot_update",
-        payload: this.snapshotPayload(current),
+      if (!this.host.projectIdForCwd || isGlobalProviderSnapshotKey(current.cwd)) {
+        if (sameSnapshotRecords(previous.records, current.records)) return;
+        this.host.emit({
+          type: "providers_snapshot_update",
+          payload: this.snapshotPayload(current),
+        });
+        return;
+      }
+      void this.emitProjectSnapshotChange(previous, current).catch((error) => {
+        this.logger.error({ err: error }, "Failed to publish project provider snapshot");
       });
     };
     this.providerSnapshotManager.on("change", handleProviderSnapshotChange);
     this.unsubscribeSnapshotEvents = () => {
       this.providerSnapshotManager.off("change", handleProviderSnapshotChange);
     };
+  }
+
+  private filterSnapshotForProject(
+    snapshot: ProviderSnapshot,
+    projectId: string,
+  ): ProviderSnapshot {
+    return {
+      ...snapshot,
+      records: snapshot.records.filter(({ entry }) => {
+        try {
+          this.providerSnapshotManager.assertProviderAllowedForProject(entry.provider, projectId);
+          return true;
+        } catch {
+          return false;
+        }
+      }),
+    };
+  }
+
+  private async emitProjectSnapshotChange(
+    previous: ProviderSnapshot,
+    current: ProviderSnapshot,
+  ): Promise<void> {
+    const projectId = await this.host.projectIdForCwd?.(current.cwd);
+    const projectDefault = projectId
+      ? this.providerSnapshotManager.resolveProjectDefault(projectId)
+      : undefined;
+    const previousView = projectId ? this.filterSnapshotForProject(previous, projectId) : previous;
+    const currentView = projectId ? this.filterSnapshotForProject(current, projectId) : current;
+    if (sameSnapshotRecords(previousView.records, currentView.records)) return;
+    this.host.emit({
+      type: "providers_snapshot_update",
+      payload: {
+        ...this.snapshotPayload(currentView),
+        ...(projectId ? { projectId } : {}),
+        ...(projectDefault ? { projectDefault } : {}),
+      },
+    });
   }
 
   dispose(): void {
@@ -423,24 +467,18 @@ export class ProviderCatalogSession {
   ): Promise<void> {
     const cwd = msg.cwd?.trim() ? resolveSnapshotCwd(expandTilde(msg.cwd)) : undefined;
     const snapshot = this.visibleSnapshot(this.providerSnapshotManager.getSnapshot(cwd));
-    const projectId = await this.host.projectIdForCwd?.(cwd);
+    const projectId = msg.projectId ?? (await this.host.projectIdForCwd?.(cwd));
+    const projectDefault = projectId
+      ? this.providerSnapshotManager.resolveProjectDefault(projectId)
+      : undefined;
     const projectSnapshot = projectId
-      ? {
-          ...snapshot,
-          records: snapshot.records.filter(({ entry }) => {
-            try {
-              this.providerSnapshotManager.assertProviderAllowedForProject(entry.provider, projectId);
-              return true;
-            } catch {
-              return false;
-            }
-          }),
-        }
+      ? this.filterSnapshotForProject(snapshot, projectId)
       : snapshot;
     this.host.emit({
       type: "get_providers_snapshot_response",
       payload: {
         ...this.snapshotPayload(projectSnapshot, { ifNoneMatch: msg.ifNoneMatch }),
+        ...(projectDefault ? { projectDefault } : {}),
         requestId: msg.requestId,
       },
     });

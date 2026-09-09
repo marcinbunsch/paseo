@@ -46,6 +46,14 @@ export function selectorOpenRefetchDecision(input: {
 
 interface UseProvidersSnapshotResult {
   entries: ProviderSnapshotEntry[] | undefined;
+  projectDefault:
+    | {
+        provider: AgentProvider;
+        model: string;
+        modeId?: string;
+        thinkingOptionId?: string;
+      }
+    | undefined;
   isLoading: boolean;
   isFetching: boolean;
   isRefreshing: boolean;
@@ -58,6 +66,7 @@ interface UseProvidersSnapshotResult {
 interface UseProvidersSnapshotOptions {
   enabled?: boolean;
   cwd?: string | null;
+  projectId?: string | null;
 }
 
 export function useProvidersSnapshot(
@@ -75,7 +84,11 @@ export function useProvidersSnapshot(
     (state) => state.sessions[serverId ?? ""]?.serverInfo?.features?.providersSnapshot === true,
   );
 
-  const queryKey = useMemo(() => providersSnapshotQueryKey(serverId, cwd), [cwd, serverId]);
+  const projectId = options.projectId?.trim() || null;
+  const queryKey = useMemo(
+    () => providersSnapshotQueryKey(serverId, cwd, projectId),
+    [cwd, projectId, serverId],
+  );
 
   const snapshotQuery = useReplicaQuery({
     queryKey,
@@ -85,7 +98,7 @@ export function useProvidersSnapshot(
       if (!client || !serverId) {
         throw new Error(t("workspace.terminal.hostDisconnected"));
       }
-      return fetchProvidersSnapshot({ client, serverId, cwd, queryClient, signal });
+      return fetchProvidersSnapshot({ client, serverId, cwd, projectId, queryClient, signal });
     },
   });
 
@@ -99,6 +112,7 @@ export function useProvidersSnapshot(
         queryClient,
         serverId,
         cwd,
+        projectId,
         providers,
       });
     },
@@ -129,6 +143,7 @@ export function useProvidersSnapshot(
 
   return {
     entries: snapshotQuery.data?.entries ?? undefined,
+    projectDefault: snapshotQuery.data?.projectDefault,
     isLoading: snapshotQuery.isLoading,
     isFetching: snapshotQuery.isFetching,
     isRefreshing,
@@ -142,14 +157,22 @@ export function useProvidersSnapshot(
 export function prefetchProvidersSnapshot(
   serverId: string,
   client: DaemonClient,
-  options: { cwd?: string | null } = {},
+  options: { cwd?: string | null; projectId?: string | null } = {},
 ): void {
   const cwd = normalizeProvidersSnapshotCwd(options.cwd);
-  const queryKey = providersSnapshotQueryKey(serverId, cwd);
+  const projectId = options.projectId?.trim() || null;
+  const queryKey = providersSnapshotQueryKey(serverId, cwd, projectId);
   void singletonQueryClient.prefetchQuery({
     queryKey,
     staleTime: Infinity,
     queryFn: ({ signal }) =>
-      fetchProvidersSnapshot({ client, serverId, cwd, queryClient: singletonQueryClient, signal }),
+      fetchProvidersSnapshot({
+        client,
+        serverId,
+        cwd,
+        projectId,
+        queryClient: singletonQueryClient,
+        signal,
+      }),
   });
 }

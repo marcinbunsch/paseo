@@ -8,6 +8,7 @@ import {
   buildProviderDefinitionMap,
   buildProviderDefinitionMapForStatuses,
   resolveDefaultModel,
+  resolveCreateFormInitialValues,
   INITIAL_USER_MODIFIED,
   PENDING_AGENT_FORM_RESOLUTION,
   type AgentFormReducerState,
@@ -22,6 +23,25 @@ import type {
   AgentProvider,
   ProviderSnapshotEntry,
 } from "@getpaseo/protocol/agent-types";
+
+describe("resolveCreateFormInitialValues", () => {
+  it("uses the project default when there is no explicit selection", () => {
+    const projectDefault = { provider: "claude" as const, model: "claude-sonnet-4-6" };
+
+    expect(resolveCreateFormInitialValues(undefined, projectDefault)).toBe(projectDefault);
+  });
+
+  it("keeps an explicit selection ahead of the project default", () => {
+    const explicit = { provider: "codex" as const, model: "gpt-6" };
+
+    expect(
+      resolveCreateFormInitialValues(explicit, {
+        provider: "claude",
+        model: "claude-sonnet-4-6",
+      }),
+    ).toBe(explicit);
+  });
+});
 
 const TEST_CODEX_DEFINITION: AgentProviderDefinition = {
   id: "codex",

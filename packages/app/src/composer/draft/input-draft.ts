@@ -36,6 +36,7 @@ interface AgentInputDraftComposerOptions {
   initialFeatureValues?: Record<string, unknown>;
   isVisible?: boolean;
   lockedWorkingDir?: string;
+  projectId?: string | null;
 }
 
 interface UseAgentInputDraftInput {
@@ -72,6 +73,7 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
     workingDir,
     serverId: composerOptions?.initialServerId ?? null,
     initialValues: composerOptions?.initialValues,
+    projectId: composerOptions?.projectId,
     isVisible: composerOptions?.isVisible ?? false,
     isCreateFlow: true,
   });

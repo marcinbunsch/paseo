@@ -196,7 +196,7 @@ export async function applyProvidersSnapshotUpdate(input: {
 }): Promise<void> {
   const snapshot = { ...input.message.payload, requestId: "providers_snapshot_update" };
   const cwd = normalizeProvidersSnapshotCwd(snapshot.cwd);
-  const queryKey = providersSnapshotQueryKey(input.serverId, cwd);
+  const queryKey = providersSnapshotQueryKey(input.serverId, cwd, snapshot.projectId);
   const previous = input.queryClient.getQueryData<{ snapshotHash?: string }>(queryKey);
   let announcement: typeof snapshot | undefined = snapshot;
   void input.queryClient.cancelQueries({ queryKey, exact: true });
@@ -210,6 +210,7 @@ export async function applyProvidersSnapshotUpdate(input: {
       return fetchProvidersSnapshot({
         ...input,
         cwd,
+        projectId: snapshot.projectId,
         snapshot: incoming,
         signal,
       });

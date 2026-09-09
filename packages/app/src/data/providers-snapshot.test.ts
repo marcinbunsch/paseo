@@ -39,6 +39,14 @@ describe("providers snapshot query scope", () => {
       "cwd",
       "/repo-a",
     ]);
+    expect(providersSnapshotQueryKey("server-1", "/repo-a", "project-work")).toEqual([
+      "providersSnapshot",
+      "server-1",
+      "cwd",
+      "/repo-a",
+      "project",
+      "project-work",
+    ]);
   });
 
   it("builds request options with cwd only for workspace scopes", () => {
@@ -48,6 +56,10 @@ describe("providers snapshot query scope", () => {
     expect(providersSnapshotRequestOptions({ cwd: "/repo-a", providers: ["codex"] })).toEqual({
       cwd: "/repo-a",
       providers: ["codex"],
+    });
+    expect(providersSnapshotRequestOptions({ cwd: "/repo-a", projectId: "project-work" })).toEqual({
+      cwd: "/repo-a",
+      projectId: "project-work",
     });
   });
 

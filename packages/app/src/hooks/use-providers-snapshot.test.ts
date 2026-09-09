@@ -168,6 +168,20 @@ describe("fetchProvidersSnapshot", () => {
     expect(client.getCalls).toEqual([{ cwd: "/repo-a" }]);
   });
 
+  it("sends the selected project for a workspace that does not exist yet", async () => {
+    const client = createClient({ snapshots: [providersSnapshot([])] });
+
+    await fetchProvidersSnapshot({
+      client,
+      serverId,
+      cwd: "/repo-a",
+      projectId: "project-work",
+      cache: createCache(),
+    });
+
+    expect(client.getCalls).toEqual([{ cwd: "/repo-a", projectId: "project-work" }]);
+  });
+
   it("reuses a not-modified response even if its body was evicted during the request", async () => {
     const entries = [codexEntry("ready", [readyCodexModel])];
     const compactSnapshot = compactProviderSnapshot(entries);

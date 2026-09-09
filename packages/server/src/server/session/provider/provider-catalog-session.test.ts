@@ -137,6 +137,44 @@ describe("ProviderCatalogSession", () => {
     expect(findByType(emitted, "get_providers_snapshot_response")?.payload.cwd).toBe(canonicalCwd);
   });
 
+  it("returns and pushes the project default with the project-filtered provider list", async () => {
+    const entries = makeEntries();
+    const projectDefault = { provider: "claude" as const, model: "claude-sonnet-4-6" };
+    const assertProviderAllowedForProject = vi.fn((provider: string) => {
+      if (provider === "codex") throw new Error("denied");
+    });
+    const projectIdForCwd = vi.fn(async () => "wrong-project");
+    const { subsystem, emitted, pushSnapshotChange } = makeSubsystem({
+      visibleProviders: new Set(["codex", "claude"]),
+      host: { projectIdForCwd },
+      snapshot: {
+        getSnapshot: () => createProviderSnapshot(entries, "/repo/work"),
+        assertProviderAllowedForProject,
+        resolveProjectDefault: () => projectDefault,
+      },
+    });
+
+    await subsystem.handleGetProvidersSnapshotRequest({
+      type: "get_providers_snapshot_request",
+      requestId: "project-default",
+      cwd: "/repo/work",
+      projectId: "project-work",
+    });
+    subsystem.start();
+    pushSnapshotChange(createProviderSnapshot(entries, "/repo/work"));
+    await vi.waitFor(() => expect(findByType(emitted, "providers_snapshot_update")).toBeDefined());
+
+    const pull = findByType(emitted, "get_providers_snapshot_response")?.payload;
+    const push = findByType(emitted, "providers_snapshot_update")?.payload;
+    expect(pull?.entries.map((entry) => entry.provider)).toEqual(["claude"]);
+    expect(push?.entries.map((entry) => entry.provider)).toEqual(["claude"]);
+    expect(pull?.projectDefault).toEqual(projectDefault);
+    expect(push?.projectDefault).toEqual(projectDefault);
+    expect(push?.projectId).toBe("wrong-project");
+    expect(projectIdForCwd).toHaveBeenCalledOnce();
+    expect(assertProviderAllowedForProject).toHaveBeenCalledWith("codex", "project-work");
+  });
+
   it("pushes the compact encoding to capable clients", () => {
     const { subsystem, emitted, pushSnapshotChange } = makeSubsystem({
       supportsCustomModeIcons: true,

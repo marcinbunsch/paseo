@@ -22,21 +22,28 @@ export function providersSnapshotQueryRoot(serverId: string | null) {
   return [PROVIDERS_SNAPSHOT_QUERY_ROOT, serverId] as const;
 }
 
-export function providersSnapshotQueryKey(serverId: string | null, cwd?: string | null) {
+export function providersSnapshotQueryKey(
+  serverId: string | null,
+  cwd?: string | null,
+  projectId?: string | null,
+) {
   const normalizedCwd = normalizeProvidersSnapshotCwd(cwd);
-  return normalizedCwd
+  const scope = normalizedCwd
     ? ([PROVIDERS_SNAPSHOT_QUERY_ROOT, serverId, "cwd", normalizedCwd] as const)
     : ([PROVIDERS_SNAPSHOT_QUERY_ROOT, serverId, "home"] as const);
+  return projectId ? ([...scope, "project", projectId] as const) : scope;
 }
 
 export function providersSnapshotRequestOptions(input: {
   cwd?: string | null;
+  projectId?: string | null;
   providers?: AgentProvider[];
   ifNoneMatch?: string;
 }) {
   const normalizedCwd = normalizeProvidersSnapshotCwd(input.cwd);
   return {
     ...(normalizedCwd ? { cwd: normalizedCwd } : {}),
+    ...(input.projectId ? { projectId: input.projectId } : {}),
     ...(input.providers ? { providers: input.providers } : {}),
     ...(input.ifNoneMatch ? { ifNoneMatch: input.ifNoneMatch } : {}),
   };
@@ -53,6 +60,7 @@ export async function fetchProvidersSnapshot(input: {
   client: SnapshotClient;
   serverId: string;
   cwd: string | null;
+  projectId?: string | null;
   queryClient?: QueryClient;
   cache?: ProviderSnapshotCache;
   signal?: AbortSignal;
@@ -64,7 +72,11 @@ export async function fetchProvidersSnapshot(input: {
   let snapshot =
     input.snapshot ??
     (await input.client.getProvidersSnapshot(
-      providersSnapshotRequestOptions({ cwd: input.cwd, ifNoneMatch: cached?.hash }),
+      providersSnapshotRequestOptions({
+        cwd: input.cwd,
+        projectId: input.projectId,
+        ifNoneMatch: cached?.hash,
+      }),
     ));
   if (snapshot.snapshotHash && !snapshot.compactSnapshot) {
     const known =
@@ -82,7 +94,7 @@ export async function fetchProvidersSnapshot(input: {
         retry: false,
         queryFn: async () => {
           const response = await input.client.getProvidersSnapshot(
-            providersSnapshotRequestOptions({ cwd: input.cwd }),
+            providersSnapshotRequestOptions({ cwd: input.cwd, projectId: input.projectId }),
           );
           // Materialize before settling so simultaneous directory announcements share
           // both the transfer and decoded body through the existing query deduplication.
@@ -95,7 +107,7 @@ export async function fetchProvidersSnapshot(input: {
         snapshot = body;
       } else {
         snapshot = await input.client.getProvidersSnapshot(
-          providersSnapshotRequestOptions({ cwd: input.cwd }),
+          providersSnapshotRequestOptions({ cwd: input.cwd, projectId: input.projectId }),
         );
       }
     }
@@ -123,13 +135,14 @@ export async function refreshAndApplyProvidersSnapshot(input: {
   queryClient: QueryClient;
   serverId: string;
   cwd: string | null;
+  projectId?: string | null;
   providers?: AgentProvider[];
   cache?: ProviderSnapshotCache;
 }) {
   const result = await input.client.refreshProvidersSnapshot(
-    providersSnapshotRequestOptions(input),
+    providersSnapshotRequestOptions({ cwd: input.cwd, providers: input.providers }),
   );
-  const queryKey = providersSnapshotQueryKey(input.serverId, input.cwd);
+  const queryKey = providersSnapshotQueryKey(input.serverId, input.cwd, input.projectId);
   await input.queryClient.cancelQueries({ queryKey, exact: true });
   await input.queryClient.fetchQuery({
     queryKey,

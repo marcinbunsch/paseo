@@ -1723,6 +1723,7 @@ export const ListAvailableProvidersRequestMessageSchema = z.object({
 export const GetProvidersSnapshotRequestMessageSchema = z.object({
   type: z.literal("get_providers_snapshot_request"),
   cwd: z.string().optional(),
+  projectId: z.string().min(1).optional(),
   // COMPAT(compactProviderSnapshots): old daemons ignore this field and return a full snapshot.
   ifNoneMatch: z.string().optional(),
   requestId: z.string(),
@@ -5910,6 +5911,13 @@ export const ListAvailableProvidersResponseSchema = z.object({
   }),
 });
 
+const ProviderProjectDefaultMessageSchema = z.object({
+  provider: AgentProviderSchema,
+  model: z.string(),
+  modeId: z.string().optional(),
+  thinkingOptionId: z.string().optional(),
+});
+
 // COMPAT(providersSnapshot): added in v0.1.48, remove gating when all clients use snapshot
 export const GetProvidersSnapshotResponseMessageSchema = z.object({
   type: z.literal("get_providers_snapshot_response"),
@@ -5921,6 +5929,7 @@ export const GetProvidersSnapshotResponseMessageSchema = z.object({
     fetchedAt: z.record(z.string(), z.string()).optional(),
     notModified: z.boolean().optional(),
     generatedAt: z.string(),
+    projectDefault: ProviderProjectDefaultMessageSchema.optional(),
     requestId: z.string(),
   }),
 });
@@ -5930,11 +5939,13 @@ export const ProvidersSnapshotUpdateMessageSchema = z.object({
   type: z.literal("providers_snapshot_update"),
   payload: z.object({
     cwd: z.string().optional(),
+    projectId: z.string().min(1).optional(),
     entries: z.array(ProviderSnapshotEntrySchema),
     compactSnapshot: CompactProviderSnapshotSchema.optional(),
     snapshotHash: z.string().optional(),
     fetchedAt: z.record(z.string(), z.string()).optional(),
     generatedAt: z.string(),
+    projectDefault: ProviderProjectDefaultMessageSchema.optional(),
   }),
 });
 

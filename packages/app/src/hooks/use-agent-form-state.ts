@@ -32,6 +32,7 @@ import {
   INITIAL_USER_MODIFIED,
   RESOLVABLE_PROVIDER_STATUSES,
   SELECTABLE_PROVIDER_STATUSES,
+  resolveCreateFormInitialValues,
   type FormInitialValues,
   type FormState,
   type ProviderModelsByProvider,
@@ -43,6 +44,7 @@ export type { FormInitialValues } from "@/provider-selection/resolve-agent-form"
 export interface UseAgentFormStateOptions {
   serverId: string | null;
   workingDir: string;
+  projectId?: string | null;
   initialValues?: FormInitialValues;
   isVisible?: boolean;
   isCreateFlow?: boolean;
@@ -145,7 +147,14 @@ async function persistProviderPreferences(input: {
 }
 
 export function useAgentFormState(options: UseAgentFormStateOptions): UseAgentFormStateResult {
-  const { serverId, initialValues, workingDir, isVisible = true, isCreateFlow = true } = options;
+  const {
+    serverId,
+    initialValues,
+    workingDir,
+    projectId,
+    isVisible = true,
+    isCreateFlow = true,
+  } = options;
 
   const { preferences, isLoading: isPreferencesLoading, updatePreferences } = useFormPreferences();
   const preferenceOverlayRef = useRef(new OptimisticFormPreferences(preferences));
@@ -179,12 +188,15 @@ export function useAgentFormState(options: UseAgentFormStateOptions): UseAgentFo
 
   const {
     entries: snapshotEntries,
+    projectDefault,
     isLoading: snapshotIsLoading,
     isRefreshing: snapshotIsRefreshing,
     error: snapshotError,
     refresh: refreshSnapshot,
     refetchIfStale: refetchSnapshotIfStale,
-  } = useProvidersSnapshot(serverId, { cwd: workingDir });
+  } = useProvidersSnapshot(serverId, { cwd: workingDir, projectId });
+
+  const effectiveInitialValues = resolveCreateFormInitialValues(initialValues, projectDefault);
 
   const allProviderEntries = useMemo(() => snapshotEntries ?? [], [snapshotEntries]);
   const snapshotProviderDefinitions = useMemo(
@@ -258,7 +270,7 @@ export function useAgentFormState(options: UseAgentFormStateOptions): UseAgentFo
       isCreateFlow,
       isPreferencesLoading,
       hasSnapshot: snapshotEntries !== undefined,
-      initialValues,
+      initialValues: effectiveInitialValues,
       preferences,
       providerModelsByProvider: snapshotProviderModelsByProvider,
       allowedProviderMap: snapshotResolvableProviderDefinitionMap,
@@ -269,7 +281,7 @@ export function useAgentFormState(options: UseAgentFormStateOptions): UseAgentFo
     isCreateFlow,
     isPreferencesLoading,
     snapshotEntries,
-    initialValues,
+    effectiveInitialValues,
     preferences,
     snapshotProviderModelsByProvider,
     snapshotResolvableProviderDefinitionMap,

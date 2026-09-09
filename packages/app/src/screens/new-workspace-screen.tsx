@@ -918,6 +918,13 @@ function buildComposerInitialValues(input: {
   return undefined;
 }
 
+function resolveSelectedHostProjectId(
+  project: HostProjectListItem | null,
+  serverId: string,
+): string | null {
+  return project ? (getHostProjectId(project, serverId) ?? null) : null;
+}
+
 async function runCreateChatAgent(input: CreateChatAgentInput): Promise<void> {
   const { payload, composerState, ensureWorkspace, serverId, clearDraft } = input;
   const { text, attachments, cwd } = payload;
@@ -966,14 +973,16 @@ function buildComposerConfig(input: {
   serverId: string;
   workspaceDirectory: string | null;
   sourceDirectory: string | null;
+  projectId: string | null;
   initialSetup?: WorkspaceDraftTabSetup | null;
 }): Parameters<typeof useAgentInputDraft>[0]["composer"] {
-  const { serverId, workspaceDirectory, sourceDirectory, initialSetup } = input;
+  const { serverId, workspaceDirectory, sourceDirectory, projectId, initialSetup } = input;
   const workingDir = workspaceDirectory || sourceDirectory || undefined;
   return {
     initialServerId: serverId || null,
     initialValues: buildComposerInitialValues({ initialSetup }),
     initialFeatureValues: initialSetup?.featureValues,
+    projectId,
     isVisible: true,
     lockedWorkingDir: workingDir,
   };
@@ -1661,6 +1670,7 @@ export function NewWorkspaceScreen({
   const projectIconDataByProjectViewKey = useProjectIcons({
     projects: projectIconTargets,
   });
+  const selectedHostProjectId = resolveSelectedHostProjectId(selectedProject, selectedServerId);
   const draftKey = buildNewWorkspaceDraftKey(draftId);
   const forkDraftSetup = usePendingWorkspaceDraftSetup(draftId);
   const draftContextScopeKey = useDraftWorkspaceAttachmentScopeKey(draftId);
@@ -1674,6 +1684,7 @@ export function NewWorkspaceScreen({
       serverId: selectedServerId,
       workspaceDirectory: workspace?.workspaceDirectory ?? null,
       sourceDirectory: selectedSourceDirectory,
+      projectId: selectedHostProjectId,
       initialSetup: forkDraftSetup?.setup,
     }),
   });

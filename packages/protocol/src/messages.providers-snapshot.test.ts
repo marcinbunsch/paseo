@@ -1,11 +1,22 @@
 import { describe, expect, test } from "vitest";
 import {
+  GetProvidersSnapshotRequestMessageSchema,
   GetProvidersSnapshotResponseMessageSchema,
   ProviderSnapshotEntrySchema,
   ProvidersSnapshotUpdateMessageSchema,
 } from "./messages.js";
 
 describe("provider snapshot message schemas", () => {
+  test("preserves the project scope on a provider snapshot request", () => {
+    const parsed = GetProvidersSnapshotRequestMessageSchema.parse({
+      type: "get_providers_snapshot_request",
+      cwd: "/repo/work",
+      projectId: "project-work",
+      requestId: "req-project",
+    });
+
+    expect(parsed.projectId).toBe("project-work");
+  });
   test("defaults missing provider snapshot entry enabled state to true", () => {
     const parsed = ProviderSnapshotEntrySchema.parse({
       provider: "codex",
@@ -73,6 +84,26 @@ describe("provider snapshot message schemas", () => {
     });
 
     expect(parsed.payload.entries.map((entry) => entry.enabled)).toEqual([true, false]);
+  });
+
+  test("preserves a project-scoped provider default", () => {
+    const projectDefault = {
+      provider: "claude" as const,
+      model: "claude-sonnet-4-6",
+      modeId: "acceptEdits",
+      thinkingOptionId: "high",
+    };
+    const parsed = GetProvidersSnapshotResponseMessageSchema.parse({
+      type: "get_providers_snapshot_response",
+      payload: {
+        entries: [],
+        generatedAt: "2026-09-09T00:00:00.000Z",
+        projectDefault,
+        requestId: "req-project-default",
+      },
+    });
+
+    expect(parsed.payload.projectDefault).toEqual(projectDefault);
   });
 
   test("defaults missing enabled state in providers snapshot update entries", () => {

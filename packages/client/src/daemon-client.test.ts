@@ -5003,11 +5003,16 @@ test("requests provider snapshots conditionally and expands the compact response
   mock.triggerOpen();
   await connectPromise;
 
-  const promise = client.getProvidersSnapshot({ cwd: "/repo", ifNoneMatch: "previous-hash" });
+  const promise = client.getProvidersSnapshot({
+    cwd: "/repo",
+    projectId: "project-work",
+    ifNoneMatch: "previous-hash",
+  });
   const request = parseSentFrame(mock.sent[0]);
   expect(request).toMatchObject({
     type: "get_providers_snapshot_request",
     cwd: "/repo",
+    projectId: "project-work",
     ifNoneMatch: "previous-hash",
   });
 

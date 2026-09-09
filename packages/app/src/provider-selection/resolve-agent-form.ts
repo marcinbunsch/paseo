@@ -18,6 +18,13 @@ export interface FormInitialValues {
   thinkingOptionId?: string | null;
 }
 
+export function resolveCreateFormInitialValues(
+  explicit: FormInitialValues | undefined,
+  projectDefault: FormInitialValues | undefined,
+): FormInitialValues | undefined {
+  return explicit ?? projectDefault;
+}
+
 export interface FormState {
   provider: AgentProvider | null;
   modeId: string;
